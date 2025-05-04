@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { adminSideBarLinks } from "@/constants";
+import { adminSideBarLinks } from "@/src/constants";
 import Link from "next/link";
 import { cn, getInitials } from "@/lib/utils";
 import { usePathname } from "next/navigation";
