@@ -1,38 +1,29 @@
 "use client";
 
-import { IKImage, ImageKitProvider, IKUpload, IKVideo } from "imagekitio-next";
-import config from "@/lib/config";
-import ImageKit from "imagekit";
 import { useRef, useState } from "react";
 import Image from "next/image";
+import { IKImage, ImageKitProvider, IKUpload, IKVideo } from "imagekitio-next";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import config from "@/lib/config";
 
 const {
-  env: {
-    imagekit: { publicKey, urlEndpoint },
-  },
-} = config;
+  imagekit: { publicKey, urlEndpoint },
+} = config.env;
 
+// Fix: use the correct API route you created
 const authenticator = async () => {
   try {
-    const response = await fetch(`${config.env.apiEndpoint}/api/auth/imagekit`);
-
+    const response = await fetch("/api/upload-id");
     if (!response.ok) {
       const errorText = await response.text();
-
-      throw new Error(
-        `Request failed with status ${response.status}: ${errorText}`,
-      );
+      throw new Error(`Upload failed: ${errorText}`);
     }
 
-    const data = await response.json();
-
-    const { signature, expire, token } = data;
-
+    const { signature, expire, token } = await response.json();
     return { token, expire, signature };
   } catch (error: any) {
-    throw new Error(`Authentication request failed: ${error.message}`);
+    throw new Error(`Authentication failed: ${error.message}`);
   }
 };
 
@@ -55,7 +46,7 @@ const FileUpload = ({
   onFileChange,
   value,
 }: Props) => {
-  const ikUploadRef = useRef(null);
+  const ikUploadRef = useRef<any>(null);
   const [file, setFile] = useState<{ filePath: string | null }>({
     filePath: value ?? null,
   });
@@ -71,11 +62,10 @@ const FileUpload = ({
   };
 
   const onError = (error: any) => {
-    console.log(error);
-
+    console.error(error);
     toast({
       title: `${type} upload failed`,
-      description: `Your ${type} could not be uploaded. Please try again.`,
+      description: "Please try again.",
       variant: "destructive",
     });
   };
@@ -83,35 +73,22 @@ const FileUpload = ({
   const onSuccess = (res: any) => {
     setFile(res);
     onFileChange(res.filePath);
-
     toast({
       title: `${type} uploaded successfully`,
-      description: `${res.filePath} uploaded successfully!`,
+      description: res.filePath,
     });
   };
 
   const onValidate = (file: File) => {
-    if (type === "image") {
-      if (file.size > 20 * 1024 * 1024) {
-        toast({
-          title: "File size too large",
-          description: "Please upload a file that is less than 20MB in size",
-          variant: "destructive",
-        });
-
-        return false;
-      }
-    } else if (type === "video") {
-      if (file.size > 50 * 1024 * 1024) {
-        toast({
-          title: "File size too large",
-          description: "Please upload a file that is less than 50MB in size",
-          variant: "destructive",
-        });
-        return false;
-      }
+    const maxSize = type === "image" ? 20 : 50;
+    if (file.size > maxSize * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: `Max size is ${maxSize}MB`,
+        variant: "destructive",
+      });
+      return false;
     }
-
     return true;
   };
 
@@ -125,13 +102,11 @@ const FileUpload = ({
         ref={ikUploadRef}
         onError={onError}
         onSuccess={onSuccess}
-        useUniqueFileName={true}
+        useUniqueFileName
         validateFile={onValidate}
         onUploadStart={() => setProgress(0)}
         onUploadProgress={({ loaded, total }) => {
-          const percent = Math.round((loaded / total) * 100);
-
-          setProgress(percent);
+          setProgress(Math.round((loaded / total) * 100));
         }}
         folder={folder}
         accept={accept}
@@ -142,11 +117,7 @@ const FileUpload = ({
         className={cn("upload-btn", styles.button)}
         onClick={(e) => {
           e.preventDefault();
-
-          if (ikUploadRef.current) {
-            // @ts-ignore
-            ikUploadRef.current?.click();
-          }
+          ikUploadRef.current?.click();
         }}
       >
         <Image
@@ -156,15 +127,13 @@ const FileUpload = ({
           height={20}
           className="object-contain"
         />
-
         <p className={cn("text-base", styles.placeholder)}>{placeholder}</p>
-
-        {file && (
+        {file.filePath && (
           <p className={cn("upload-filename", styles.text)}>{file.filePath}</p>
         )}
       </button>
 
-      {progress > 0 && progress !== 100 && (
+      {progress > 0 && progress < 100 && (
         <div className="w-full rounded-full bg-green-200">
           <div className="progress" style={{ width: `${progress}%` }}>
             {progress}%
@@ -172,21 +141,21 @@ const FileUpload = ({
         </div>
       )}
 
-      {file &&
+      {file.filePath &&
         (type === "image" ? (
           <IKImage
-            alt={file.filePath}
+            alt="Uploaded preview"
             path={file.filePath}
             width={500}
             height={300}
           />
-        ) : type === "video" ? (
+        ) : (
           <IKVideo
             path={file.filePath}
-            controls={true}
+            controls
             className="h-96 w-full rounded-xl"
           />
-        ) : null)}
+        ))}
     </ImageKitProvider>
   );
 };
